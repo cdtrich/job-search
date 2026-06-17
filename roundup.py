@@ -72,10 +72,13 @@ def haversine(a: tuple[float, float], b: tuple[float, float]) -> float:
     return 2 * 6371.0 * asin(sqrt(h))
 
 
-def locate(text: str, cfg: dict) -> tuple[float | None, bool]:
+def locate(text: str, cfg: dict) -> tuple[float | None, bool, bool]:
     """
-    Map a free-text location/title to (distance_km_from_origin, is_remote).
-    distance is None when no known duty station is recognised in the text.
+    Map a free-text location/title to
+        (distance_km_from_origin, is_remote, country_in_range).
+    distance is None when no known *city* is recognised. country_in_range is
+    True when the text names a country whose duty stations are within range but
+    no specific city was found (e.g. a job tagged just "Belgium").
     """
     t = (text or "").lower()
     remote = any(term in t for term in cfg["remote_terms"])
@@ -85,7 +88,10 @@ def locate(text: str, cfg: dict) -> tuple[float | None, bool]:
         if city.lower() in t:
             d = haversine(origin, (lat, lon))
             best = d if best is None else min(best, d)
-    return best, remote
+    country_hit = False
+    if best is None:
+        country_hit = any(c.lower() in t for c in cfg.get("accept_countries", []))
+    return best, remote, country_hit
 
 
 # --------------------------------------------------------------------------- #
@@ -104,7 +110,13 @@ def classify(job: Job, cfg: dict) -> bool:
     if any(k in blob for k in cfg["keywords_exclude"]):
         return False
 
-    dist, remote = locate(blob, cfg)
+    # Optional focus filter: if keywords_require is non-empty, a job must match
+    # at least one of those terms. Leave it empty to see everything in range.
+    require = cfg.get("keywords_require") or []
+    if require and not any(k in blob for k in require):
+        return False
+
+    dist, remote, country_hit = locate(blob, cfg)
     job.remote = remote
     job.distance_km = dist
     boost = sum(1 for k in cfg["keywords_boost"] if k in blob)
@@ -114,10 +126,14 @@ def classify(job: Job, cfg: dict) -> bool:
     elif dist is not None and dist <= 120:
         job.tier, job.score = "Near Brussels (\u2264120 km)", 80 + boost
     elif remote:
+        # Remote is kept regardless of distance, by design.
         job.tier, job.score = "Fully remote / home-based", 70 + boost
     elif dist is not None and dist <= cfg["radius_km"]:
         job.tier = f"Within {cfg['radius_km']} km (occasional commute)"
         job.score = max(40, int(60 - dist / 20)) + boost
+    elif country_hit:
+        # Named an in-range country but no specific city -> keep, rank modestly.
+        job.tier, job.score = "Within range (country only)", 50 + boost
     else:
         return False  # unknown location and not remote -> drop
     return True
