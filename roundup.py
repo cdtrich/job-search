@@ -215,6 +215,15 @@ def _parse_rw(d: dict) -> Job:
 # --------------------------------------------------------------------------- #
 def fetch_rss(feed: dict, cfg: dict) -> list[Job]:
     parsed = feedparser.parse(feed["url"], agent=UA)
+
+    # Diagnostics: feedparser does NOT raise on HTTP 4xx/5xx -- it just returns
+    # no entries. Surface what actually happened so the Actions log is useful.
+    status = getattr(parsed, "status", "n/a")
+    n = len(parsed.entries)
+    print(f"  feed '{feed['name']}': HTTP {status}, {n} entries")
+    if getattr(parsed, "bozo", 0) and n == 0:
+        print(f"    (not valid XML: {getattr(parsed, 'bozo_exception', '')})")
+
     out: list[Job] = []
     for e in parsed.entries:
         posted = None

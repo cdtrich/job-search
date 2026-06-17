@@ -130,41 +130,42 @@ reliefweb:
     - Switzerland
 
 # ---------------------------------------------------------------------------
-# Source 2: RSS feeds. These cover the institutions ReliefWeb misses
-# (NATO, OECD, OSCE, EU, Council of Europe...) and are where your dataviz roles
-# will actually come from.
+# Source 2: RSS feeds.
 #
-# >>> DO THIS to switch on the dataviz feed (about 60 seconds) <<<
-#   1. Go to https://unjoblist.org/s
-#   2. In the search box, type:  data visualization
-#      (the site searches job titles; run it once to confirm you get hits)
-#   3. On the results page, copy the page URL -- the search is stored in it,
-#      e.g.  https://unjoblist.org/s?q=data+visualization
-#   4. Find the RSS link/icon on that results page and copy the FEED url
-#      (it's the same search as an XML feed). Paste it into `url` below.
-#   5. Set enabled: true. Repeat for other terms (information design, etc.)
+# STRATEGY: rather than rely on each site's keyword SEARCH (fragile -- and
+# unjoblist's search was returning HTTP 500 at last check), point the script at
+# a BROAD "all new jobs" feed and let keywords_require (above) narrow it to
+# dataviz in code. If you enable a broad feed below, also UNCOMMENT the
+# keywords_require terms above, or you'll get every UN vacancy in range.
 #
-# If you can't spot the RSS link, the page URL itself often works with
-# feedparser; try it with enabled: true and check the Actions log -- if it
-# returns 0 entries, the explicit feed URL is the fix.
+# HOW TO GET A FEED URL THAT WORKS (the sites block bots from the HTML pages,
+# but their RSS endpoints are meant to be polled by readers):
+#   * Open the site in your browser (you can reach pages my tools can't).
+#   * Try adding /feed or .rss to a listing URL, OR view page source
+#     (Ctrl/Cmd+U) and Ctrl+F for "rss" / "atom" to find the real feed URL.
+#   * Paste it as `url` and set enabled: true.
+#
+# Concrete starting points to try in a browser:
+#   * UNDP   -> https://jobs.undp.org/cj_rss_feed.cfm   (lists ready-made,
+#               stable RSS feeds; updated hourly -- a reliable first win)
+#   * UN Job List firehose -> https://unjoblist.org/lists/NewJobs   (has RSS;
+#               retry if it 500s, the outage is on their side)
+#   * UN Careers -> careers.un.org search pages expose an RSS link
+#   * EU agencies -> each has a "Latest job vacancies" RSS (e.g. EU-OSHA)
 # ---------------------------------------------------------------------------
 rss_feeds:
-  - name: "UNjobList - data visualization"
-    org: ""
-    url: "https://unjoblist.org/s?q=data+visualization"   # <-- replace with the RSS feed URL
-    enabled: false                                         # <-- flip to true once confirmed
-
-  - name: "UNjobList - information design"
-    org: ""
-    url: "https://unjoblist.org/s?q=information+design"    # <-- replace with the RSS feed URL
+  # Example of the broad-feed + local-filter approach. Replace `url` with a
+  # working feed URL from the list above, flip enabled, and turn on
+  # keywords_require so only dataviz roles survive.
+  - name: "UNDP vacancies (broad; filtered locally)"
+    org: "UNDP"
+    url: "PASTE_A_WORKING_FEED_URL_HERE"   # from jobs.undp.org/cj_rss_feed.cfm
     enabled: false
 
-  # EU agencies expose a "Latest job vacancies" RSS feed on their websites
-  # (e.g. EU-OSHA at osha.europa.eu). Add the ones you care about here, one per
-  # line, with the vacancy-feed URL from each agency's RSS page.
-  # - name: "EU-OSHA vacancies"
-  #   url: "https://osha.europa.eu/en/rss/..."   # confirm exact feed URL
-  #   enabled: false
+  - name: "UN Job List - new jobs (broad; filtered locally)"
+    org: ""
+    url: "https://unjoblist.org/lists/NewJobs"   # confirm this resolves to RSS
+    enabled: false
 
 # ---------------------------------------------------------------------------
 # Optional LLM relevance pass. Off by default. If enabled AND an
