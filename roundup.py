@@ -13,7 +13,7 @@ The script is STATELESS: every run pulls everything posted in the last
 .github/workflows/weekly-roundup.yml). No database, no server, no admin
 rights required.
 
-Sources, in order of reliability: #
+Sources, in order of reliability:
   1. ReliefWeb v2 JSON API   -> works out of the box (free, no key)
   2. RSS feeds               -> add the exact feed URLs in config.yaml
   3. (extension point)       -> HTML scrapers for portals with no feed
@@ -131,13 +131,13 @@ def fetch_reliefweb(cfg: dict) -> list[Job]:
     if not rc.get("enabled"):
         return []
 
-    since = (dt.date.today() - dt.timedelta(days=cfg["lookback_days"])).isoformat()
+    # ReliefWeb wants a full ISO datetime for date ranges, not a bare date.
+    since = (dt.date.today() - dt.timedelta(days=cfg["lookback_days"])).isoformat() + "T00:00:00+00:00"
     base = "https://api.reliefweb.int/v2/jobs"
     params = {"appname": rc.get("appname", "brussels-io-roundup")}
-    fields = [
-        "title", "url", "source.name", "country.name", "city.name",
-        "date.created", "date.closing", "body", "career_categories.name",
-    ]
+    # Request the top-level objects (source/country/city are arrays of objects);
+    # _parse_rw() reads .name out of them.
+    fields = ["title", "url", "source", "country", "city", "date", "body"]
 
     def query(conditions, text=None) -> list[dict]:
         payload = {
@@ -147,22 +147,25 @@ def fetch_reliefweb(cfg: dict) -> list[Job]:
             "filter": {"operator": "AND", "conditions": conditions},
         }
         if text:
-            payload["query"] = {"value": text, "fields": ["title", "body"]}
+            payload["query"] = {"value": text, "operator": "OR",
+                                "fields": ["title", "body"]}
         r = requests.post(base, params=params, json=payload,
                           headers={"User-Agent": UA}, timeout=30)
         r.raise_for_status()
         return r.json().get("data", [])
 
     rows: list[dict] = []
-    # (a) anything posted recently in a country within the radius
+    # (a) anything posted recently in a country within the radius.
+    #     `country` (not `country.name`) is the filterable field; an array
+    #     value is OR'd by default.
     rows += query([
         {"field": "date.created", "value": {"from": since}},
-        {"field": "country.name", "value": rc["countries"], "operator": "OR"},
+        {"field": "country", "value": rc["countries"]},
     ])
     # (b) remote / home-based anywhere
     rows += query(
         [{"field": "date.created", "value": {"from": since}}],
-        text="home-based OR remote OR telework OR teleworking",
+        text="home-based remote telework teleworking",
     )
     return [_parse_rw(d) for d in rows]
 
@@ -303,12 +306,15 @@ def build_email(jobs: list[Job]) -> str:
 
 
 def send_email(html_body: str) -> None:
-    host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-    port = int(os.environ.get("SMTP_PORT", "587"))
+    # `or` defaults handle the case where a GitHub secret is unset: the env
+    # var still exists but is an empty string, which .get(key, default) does
+    # NOT replace. So fall back when the value is empty too.
+    host = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
+    port = int(os.environ.get("SMTP_PORT") or "587")
     user = os.environ["SMTP_USER"]
     pw = os.environ["SMTP_PASS"]
     to = os.environ["EMAIL_TO"]
-    frm = os.environ.get("EMAIL_FROM", user)
+    frm = os.environ.get("EMAIL_FROM") or user
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"IO job roundup \u2014 {dt.date.today():%d %b %Y}"
