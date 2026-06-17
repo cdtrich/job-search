@@ -1,0 +1,136 @@
+# ---------------------------------------------------------------------------
+# Where you commute from. Default is Brussels city centre as you asked; change
+# the coordinates if you'd rather measure from your actual home.
+# ---------------------------------------------------------------------------
+origin:
+  name: Brussels
+  lat: 50.8503
+  lon: 4.3517
+
+radius_km: 500 # acceptable commute / duty-station radius
+lookback_days: 8 # weekly run + 1 day buffer (stateless dedup window)
+
+# ---------------------------------------------------------------------------
+# Known duty stations and their coordinates. The script measures each against
+# the origin and KEEPS a job only if its station is within radius_km (or the
+# job is remote). Cities beyond the radius are listed for clarity and will be
+# dropped automatically. Add any others you care about.
+#   Within ~500 km of Brussels:  NATO (Brussels), OECD/EUISS (Paris),
+#   IMO (London), Council of Europe (Strasbourg), Europol (The Hague),
+#   UN Bonn, ECB (Frankfurt), many UN Geneva roles.
+#   Out of range: OSCE (Vienna ~915 km), Rome, Madrid, Warsaw, Copenhagen,
+#   New York, Nairobi -> only surface if explicitly remote.
+# ---------------------------------------------------------------------------
+duty_stations:
+  Brussels: [50.8503, 4.3517]
+  Antwerp: [51.2194, 4.4025]
+  Ghent: [51.0543, 3.7174]
+  The Hague: [52.0705, 4.3007]
+  Amsterdam: [52.3676, 4.9041]
+  Luxembourg: [49.6116, 6.1319]
+  Paris: [48.8566, 2.3522]
+  Lille: [50.6292, 3.0573]
+  Strasbourg: [48.5734, 7.7521]
+  London: [51.5074, -0.1278]
+  Bonn: [50.7374, 7.0982]
+  Cologne: [50.9375, 6.9603]
+  Frankfurt: [50.1109, 8.6821]
+  Geneva: [46.2044, 6.1432]
+  # --- below here is beyond 500 km; kept only for label clarity ---
+  Vienna: [48.2082, 16.3738]
+  Rome: [41.9028, 12.4964]
+
+remote_terms:
+  - remote
+  - home-based
+  - home based
+  - homebased
+  - telework
+  - teleworking
+
+# Words that nudge a job UP in ranking (tuned to a comms / data / policy
+# profile -- edit freely).
+keywords_boost:
+  - communication
+  - communications
+  - digital
+  - data
+  - visualisation
+  - visualization
+  - editor
+  - editorial
+  - web
+  - content
+  - outreach
+  - dissemination
+  - publication
+  - knowledge management
+  - policy
+  - artificial intelligence
+  - governance
+  - multimedia
+
+# Words that drop a job outright.
+keywords_exclude:
+  - driver
+  - security guard
+  - nurse
+  - medical officer
+  - cleaner
+
+# ---------------------------------------------------------------------------
+# Source 1: ReliefWeb -- free JSON API, works immediately. Skews humanitarian
+# but indexes a lot of UN. From Nov 2025 ReliefWeb asks for a pre-approved
+# appname; the placeholder below works for low-volume personal use, but if you
+# get throttled, email feedback@reliefweb.int to register one.
+# ---------------------------------------------------------------------------
+reliefweb:
+  enabled: true
+  appname: brussels-io-roundup
+  countries:
+    - Belgium
+    - Netherlands
+    - Luxembourg
+    - France
+    - United Kingdom of Great Britain and Northern Ireland
+    - Germany
+    - Switzerland
+
+# ---------------------------------------------------------------------------
+# Source 2: RSS feeds. These cover the institutions ReliefWeb misses
+# (NATO, OECD, OSCE, EU, Council of Europe...). IMPORTANT: open each URL in a
+# browser once and confirm it returns XML, then set enabled: true. Most of
+# these sites show an RSS icon on their search-results pages -- the feed URL is
+# usually the search URL with the site's RSS suffix. I've left them disabled so
+# the pipeline runs on ReliefWeb alone until you've pasted working URLs.
+#
+# Good candidates (confirm exact feed URLs):
+#   * UNjobs.org      -> per duty-station / per-employer pages support RSS
+#                        (e.g. the Brussels page at /duty_stations/bru)
+#   * UNjoblist.org   -> every custom search-results page has an RSS feed
+#   * UN Careers      -> careers.un.org exposes RSS on searches
+#   * UNDP            -> jobs.undp.org/cj_rss_feed.cfm lists direct RSS feeds
+# ---------------------------------------------------------------------------
+rss_feeds:
+  - name: "UNjobs - Brussels"
+    org: ""
+    location_hint: "Brussels, Belgium"
+    url: "https://unjobs.org/duty_stations/bru" # <-- confirm RSS URL, then:
+    enabled: false
+  - name: "UNjoblist - custom search"
+    org: ""
+    url: "https://unjoblist.org/" # <-- build a search, grab its RSS
+    enabled: false
+
+# ---------------------------------------------------------------------------
+# Optional LLM relevance pass. Off by default. If enabled AND an
+# ANTHROPIC_API_KEY env var is present, borderline matches are filtered against
+# this profile description with a cheap model. Failures are non-fatal.
+# ---------------------------------------------------------------------------
+llm:
+  enabled: false
+  profile: >
+    Digital communications and data-visualisation professional in EU/international
+    policy settings. Strengths: web publishing, editorial/content, data viz,
+    AI governance, multilingual (EN/FR/DE). Interested in communications, digital,
+    knowledge-management, data, and policy-adjacent roles at public institutions.

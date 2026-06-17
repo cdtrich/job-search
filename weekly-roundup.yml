@@ -1,0 +1,28 @@
+name: Weekly IO job roundup
+
+on:
+  schedule:
+    - cron: "0 7 * * 1" # every Monday 07:00 UTC
+  workflow_dispatch: {} # also run on demand from the Actions tab
+
+jobs:
+  roundup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Build and send roundup
+        run: python roundup.py
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }} # optional, defaults to smtp.gmail.com
+          SMTP_PORT: ${{ secrets.SMTP_PORT }} # optional, defaults to 587
+          SMTP_USER: ${{ secrets.SMTP_USER }} # full email address
+          SMTP_PASS: ${{ secrets.SMTP_PASS }} # Gmail app password (not your login pw)
+          EMAIL_TO: ${{ secrets.EMAIL_TO }} # where the digest goes
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }} # optional LLM pass
